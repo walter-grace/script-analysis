@@ -1,74 +1,97 @@
 import os
 import re
-import time
 import streamlit as st
 from PyPDF2 import PdfReader
-import openai
-from dotenv import load_dotenv
 from fpdf import FPDF
+import openai
 
 st.title("Film Script Analysis")
 
 openai_api_key = st.text_input("Enter your OpenAI API Key", type="password")
 
+# Define rate as $0.000004 per token
+rate = 0.000004
+
 if openai_api_key:
     # Set the OpenAI API key
     openai.api_key = openai_api_key
 
-    st.subheader("Analyzing script scene by scene...")
+def pdf_to_text(file_path):
+    reader = PdfReader(file_path)
+    text = " ".join([page.extract_text() for page in reader.pages])
+    return text
 
-    uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
-    if uploaded_file is not None:
-        with open("temp.pdf", "wb") as f:
-            f.write(uploaded_file.getbuffer())
+def split_into_scenes(text):
+    text = re.sub(r'\b(INT\.|EXT\.)', r' \1', text)
+    scenes = re.split(r' (?=INT\.|EXT\.)', text)
+    return scenes
 
-        # Convert PDF to text
-        text = pdf_to_text("temp.pdf")
+def split_story_in_half(text):
+    tokens = text.split(' ')
+    half = len(tokens)//2
+    return ' '.join(tokens[:half]), ' '.join(tokens[half:])
 
-        # Split the story in half
-        story_first_half, story_second_half = split_story_in_half(text)
+def analyze_scene(scene_content, prompt=None, model="gpt-3.5-turbo-16k"):
+    system_prompt = """ 
+    Think of yourself as a movie reviewer who knows a lot about films. You've also got the know-how of a successful movie maker. Now, take a look at this latest popular movie. Think about its story, the acting, the camera work, and how well it was made. Also, think about how it could have been better if you were in charge, like who to cast, how to spend the budget, how to promote it, and where to show it. Pay extra attention to dialogues that sound too musical or are said over and over. Here's the scene to look at:"""
 
-        # Split into scenes
-        scenes = split_into_scenes(text)
+    user_prompt = f"\n{scene_content}\n\n"
+    user_prompt += (("Also, please consider: " + prompt) if prompt else "")
+    user_prompt += "\n\nAfter considering the scene's narrative structure, character development, dialogue, pacing, and themes, provide a detailed analysis. Highlight areas that work well, those that need refinement, and any observed inconsistencies or plot holes. Also, suggest any necessary alterations or additions to enhance the story's depth, emotional impact, and overall quality."
 
-        progress = st.progress(0)  # Initial progress is 0
+    response, cost = generate_response(system_prompt, user_prompt, model)  # ensure the function returns cost
+    return response, cost  # return cost together with response
 
-        # Create directory to save analysis files
-        if not os.path.exists('analysis_files'):
-            os.makedirs('analysis_files')
+def generate_response(system_prompt, user_prompt, model="gpt-3.5-turbo-16k"):
+    messages = []
+    messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_prompt})
 
-        scenes_analysis = []  # Initialize empty list to store the analysis of each scene
+    params = {
+        'model': model,
+        "messages": messages,
+        "max_tokens": 800,
+        "temperature": 0.6,
+    }
 
-        for i, scene in enumerate(scenes):
-            if scene.strip() == "":
-                continue
-            story_part = story_first_half if i < len(scenes) // 2 else story_second_half
-            scene_with_context = story_part + "\n" + scene
-            analysis = analyze_scene(scene_with_context)
-            st.write(f"Analysis of Scene {i+1}:")
-            st.write(analysis)
+    response = openai.ChatCompletion.create(**params)
+    reply = response.choices[0]["message"]["content"]
+    cost = response['usage']['total_tokens']  # extract the number of tokens used
+    return reply, cost  # return cost together with reply
 
-            scenes_analysis.append(analysis)  # Add the analysis to the list
+def write_to_pdf(text, filename="output.pdf"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.multi_cell(0, 10, txt=text)
+    pdf.output(filename)
 
-            # Save analysis to a text file
-            with open(f'analysis_files/scene{i+1}_analysis.txt', 'w') as file:
-                file.write(analysis)
+uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
+if uploaded_file is not None:
+    with open("temp.pdf", "wb") as f:
+        f.write(uploaded_file.getbuffer())
 
-            progress_value = (i+1) / len(scenes)  # Calculate the current progress
-            progress.progress(progress_value)  # Update the progress bar
+    text = pdf_to_text("temp.pdf")
+    story_first_half, story_second_half = split_story_in_half(text)
+    scenes = split_into_scenes(text)
 
-            time.sleep(2)  # optional sleep to prevent rate limiting
+    total_cost = 0
+    pdf_content = ""
+    for i, scene in enumerate(scenes):
+        if scene.strip() == "":
+            continue
+        story_part = story_first_half if i < len(scenes) // 2 else story_second_half
+        scene_with_context = story_part + "\n" + scene
+        analysis, cost = analyze_scene(scene_with_context)
+        total_cost += cost  # accumulate the cost
+        cost_in_usd = cost * rate  # convert cost to USD
+        analysis_section = f"Analysis of Scene {i+1}:\n{analysis}\nCost of analysis: ${cost_in_usd:.2f}\n"
+        pdf_content += analysis_section
+        st.write(analysis_section)
 
-        # When the loop is done, generate the PDF report
-        export_to_pdf(scenes_analysis)
+    total_cost_in_usd = total_cost * rate  # convert total cost to USD
+    pdf_content += f"\nTotal cost of analyses: ${total_cost_in_usd:.2f}"
+    st.write(f"Total cost of analyses: ${total_cost_in_usd:.2f}")
 
-        # Then create a download button for the PDF
-        with open("scene_analysis.pdf", "rb") as f:
-            pdf_file = f.read()
-
-        st.download_button(
-            label="Download Scene Analysis Report",
-            data=pdf_file,
-            file_name='scene_analysis.pdf',
-            mime='application/pdf',
-        )
+    write_to_pdf(pdf_content, "analysis_output.pdf")
+    st.download_button(label="Download PDF", data=open("analysis_output.pdf", "rb"), file_name="analysis_output.pdf", mime="application/pdf")
