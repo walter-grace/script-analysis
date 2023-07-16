@@ -39,8 +39,8 @@ def analyze_scene(scene_content, prompt=None, model="gpt-3.5-turbo-16k"):
     user_prompt += (("Also, please consider: " + prompt) if prompt else "")
     user_prompt += "\n\nAfter considering the scene's narrative structure, character development, dialogue, pacing, and themes, provide a detailed analysis. Highlight areas that work well, those that need refinement, and any observed inconsistencies or plot holes. Also, suggest any necessary alterations or additions to enhance the story's depth, emotional impact, and overall quality."
 
-    response, cost = generate_response(system_prompt, user_prompt, model)  # ensure the function returns cost
-    return response, cost  # return cost together with response
+    response, cost = generate_response(system_prompt, user_prompt, model)
+    return response, cost
 
 def generate_response(system_prompt, user_prompt, model="gpt-3.5-turbo-16k"):
     messages = []
@@ -56,8 +56,8 @@ def generate_response(system_prompt, user_prompt, model="gpt-3.5-turbo-16k"):
 
     response = openai.ChatCompletion.create(**params)
     reply = response.choices[0]["message"]["content"]
-    cost = response['usage']['total_tokens']  # extract the number of tokens used
-    return reply, cost  # return cost together with reply
+    cost = response['usage']['total_tokens']
+    return reply, cost
 
 def write_to_pdf(text, filename="output.pdf"):
     pdf = FPDF()
@@ -65,6 +65,7 @@ def write_to_pdf(text, filename="output.pdf"):
     pdf.set_font("Arial", size=12)
     pdf.multi_cell(0, 10, txt=text)
     pdf.output(filename)
+
 # Replace this line with your name and website or any details you want to display
 st.subheader("A Streamlit web app by [nico](https://nico.super.site/)")
 
@@ -79,19 +80,35 @@ if uploaded_file is not None:
 
     total_cost = 0
     pdf_content = ""
+
+    # Initialize the progress bar and the percentage completion text at the top of the loop
+    progress_bar = st.progress(0)
+    progress_text = st.empty()
+
     for i, scene in enumerate(scenes):
         if scene.strip() == "":
             continue
         story_part = story_first_half if i < len(scenes) // 2 else story_second_half
         scene_with_context = story_part + "\n" + scene
+
+        scene_title = f"Scene {i+1}"
+        st.subheader(scene_title)
+        st.write(scene)
+
         analysis, cost = analyze_scene(scene_with_context)
-        total_cost += cost  # accumulate the cost
-        cost_in_usd = cost * rate  # convert cost to USD
-        analysis_section = f"Analysis of Scene {i+1}:\n{analysis}\nCost of analysis: ${cost_in_usd:.2f}\n"
+
+        total_cost += cost
+        cost_in_usd = cost * rate
+        analysis_section = f"Analysis of {scene_title}:\n{analysis}\nCost of analysis: ${cost_in_usd:.2f}\n"
         pdf_content += analysis_section
         st.write(analysis_section)
 
-    total_cost_in_usd = total_cost * rate  # convert total cost to USD
+        # Update the progress bar and the percentage completion text based on the ratio of current scene to total scenes
+        progress = (i + 1) / len(scenes)
+        progress_bar.progress(progress)
+        progress_text.text(f"Progress: {progress*100:.1f}%")
+
+    total_cost_in_usd = total_cost * rate
     pdf_content += f"\nTotal cost of analyses: ${total_cost_in_usd:.2f}"
     st.write(f"Total cost of analyses: ${total_cost_in_usd:.2f}")
 

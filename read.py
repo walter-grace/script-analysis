@@ -29,7 +29,7 @@ def save_scenes(scenes, output_dir):
             print(f"Error saving scene {i+1} to {filename}: {e}")
 
 # Convert PDF to text
-text = pdf_to_text("temp.pdf")
+text = pdf_to_text("wings.pdf")
 
 # Split into scenes
 scenes = split_into_scenes(text)
