@@ -9,6 +9,9 @@ st.title("Film Script Analysis")
 
 openai_api_key = st.text_input("Enter your OpenAI API Key", type="password")
 
+# Replace this line with your name and website or any details you want to display
+st.subheader("A Streamlit web app by [nico](nico.super.site)")
+
 # Define rate as $0.000004 per token
 rate = 0.000004
 
@@ -65,8 +68,8 @@ def write_to_pdf(text, filename="output.pdf"):
     pdf.set_font("Arial", size=12)
     pdf.multi_cell(0, 10, txt=text)
     pdf.output(filename)
-# Replace this line with your name and website or any details you want to display
-st.subheader("A Streamlit web app by [nico](https://nico.super.site/)")
+
+
 
 uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
 if uploaded_file is not None:
@@ -90,6 +93,26 @@ if uploaded_file is not None:
         analysis_section = f"Analysis of Scene {i+1}:\n{analysis}\nCost of analysis: ${cost_in_usd:.2f}\n"
         pdf_content += analysis_section
         st.write(analysis_section)
+
+    # Full script analysis
+    full_script = story_first_half + " " + story_second_half
+    prompt = """
+    After considering the script's overall narrative structure, character development, dialogue, pacing, and themes, provide a detailed analysis. 
+    In your analysis, please consider the following elements:
+    - Problem: Identify the main problem in the script.
+    - Question: What question is the script trying to answer?
+    - Mystery: What is the unknown factor in the script?
+    - Goal: What is the desired outcome of the script?
+    - Action: What steps do the characters take to achieve their goal?
+    - Threshold: At what point is the goal achieved?
+    - Surprise: What is the unexpected outcome in the script?
+    """
+    full_analysis, cost = analyze_scene(full_script, prompt=prompt)
+    total_cost += cost  # accumulate the cost
+    cost_in_usd = cost * rate  # convert cost to USD
+    analysis_section = f"\nFull Script Analysis:\n{full_analysis}\nCost of analysis: ${cost_in_usd:.2f}\n"
+    pdf_content += analysis_section
+    st.write(analysis_section)
 
     total_cost_in_usd = total_cost * rate  # convert total cost to USD
     pdf_content += f"\nTotal cost of analyses: ${total_cost_in_usd:.2f}"
