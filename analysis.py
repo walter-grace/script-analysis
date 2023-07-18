@@ -4,17 +4,16 @@ import streamlit as st
 from PyPDF2 import PdfReader
 from fpdf import FPDF
 import openai
+from dotenv import load_dotenv
 
 st.title("Film Script Analysis")
 
-openai_api_key = st.text_input("Enter your OpenAI API Key", type="password")
-
 # Define rate as $0.000004 per token
 rate = 0.000004
+load_dotenv()
 
-if openai_api_key:
-    # Set the OpenAI API key
-    openai.api_key = openai_api_key
+openai_api_key = os.getenv("OPENAI_API_KEY")
+
 
 def pdf_to_text(file_path):
     reader = PdfReader(file_path)
