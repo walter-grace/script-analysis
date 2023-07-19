@@ -12,7 +12,7 @@ st.title("Film Script Analysis")
 rate = 0.000004
 load_dotenv()
 
-openai_api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv('OPENAI_API_KEY')  # get the value of OPENAI_API_KEY
 
 
 def pdf_to_text(file_path):
@@ -33,9 +33,7 @@ def split_story_in_half(text):
 def analyze_scene(scene_content, prompt=None, model="gpt-3.5-turbo-16k"):
     system_prompt = """ 
     Think of yourself as a movie reviewer who knows a lot about films. You've also got the know-how of a successful movie maker. Now, take a look at this latest popular movie. Think about its story, the acting, the camera work, and how well it was made. Also, think about how it could have been better if you were in charge, like who to cast, how to spend the budget, how to promote it, and where to show it. Pay extra attention to dialogues that sound too musical or are said over and over. Here's the scene to look at:"""
-
     user_prompt = f"\n{scene_content}\n\n"
-    user_prompt += (("Also, please consider: " + prompt) if prompt else "")
     user_prompt += "\n\nAfter considering the scene's narrative structure, character development, dialogue, pacing, and themes, provide a detailed analysis. Highlight areas that work well, those that need refinement, and any observed inconsistencies or plot holes. Also, suggest any necessary alterations or additions to enhance the story's depth, emotional impact, and overall quality."
 
     response, cost = generate_response(system_prompt, user_prompt, model)
@@ -49,7 +47,7 @@ def generate_response(system_prompt, user_prompt, model="gpt-3.5-turbo-16k"):
     params = {
         'model': model,
         "messages": messages,
-        "max_tokens": 800,
+        "max_tokens": 400,
         "temperature": 0.6,
     }
 
