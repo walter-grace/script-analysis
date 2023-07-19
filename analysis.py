@@ -6,6 +6,7 @@ from fpdf import FPDF
 import openai
 from dotenv import load_dotenv
 
+
 st.title("Film Script Analysis")
 
 # Define rate as $0.000004 per token
@@ -13,7 +14,6 @@ rate = 0.000004
 load_dotenv()
 
 openai.api_key = os.getenv('OPENAI_API_KEY')  # get the value of OPENAI_API_KEY
-
 
 def pdf_to_text(file_path):
     reader = PdfReader(file_path)
@@ -51,10 +51,33 @@ def generate_response(system_prompt, user_prompt, model="gpt-3.5-turbo-16k"):
         "temperature": 0.6,
     }
 
-    response = openai.ChatCompletion.create(**params)
+    try:
+        response = openai.ChatCompletion.create(**params)
+    except openai.error.InvalidRequestError as e:
+        if "maximum context length" in str(e):
+            # Reduce the length of the system and user prompts if the error is about context length
+            messages = []
+            messages.append({"role": "system", "content": system_prompt[:8000]})
+            messages.append({"role": "user", "content": user_prompt[:8000]})
+            
+            # Update params with the new messages
+            params["messages"] = messages
+
+            # Retry the API call
+            response = openai.ChatCompletion.create(**params)
+        else:
+            raise e
+
     reply = response.choices[0]["message"]["content"]
     cost = response['usage']['total_tokens']
+
+    print(f'Tokens used for this call: {cost}')
+ # Log the tokens used
+
     return reply, cost
+
+
+
 
 def write_to_pdf(text, filename="output.pdf"):
     pdf = FPDF()
